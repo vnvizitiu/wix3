@@ -46,6 +46,7 @@ namespace Microsoft.Tools.WindowsInstallerXml.UX
         private Dictionary<string, int> downloadRetries;
         private bool downgrade;
 
+        private ICommand completeCommand;
         private ICommand licenseCommand;
         private ICommand launchHomePageCommand;
         private ICommand launchNewsCommand;
@@ -100,7 +101,7 @@ namespace Microsoft.Tools.WindowsInstallerXml.UX
         /// <summary>
         /// Gets the title for the application.
         /// </summary>
-        public string Version 
+        public string Version
         {
             get { return String.Concat("v", WixBA.Model.Version.ToString()); }
         }
@@ -139,6 +140,19 @@ namespace Microsoft.Tools.WindowsInstallerXml.UX
                     this.downgrade = value;
                     base.OnPropertyChanged("Downgrade");
                 }
+            }
+        }
+
+        public ICommand CompleteCommand
+        {
+            get
+            {
+                if (this.completeCommand == null)
+                {
+                    this.completeCommand = new RelayCommand(param => WixBA.LaunchUrl(WixDistribution.VSExtensionsLandingUrl), param => true);
+                }
+
+                return this.completeCommand;
             }
         }
 
@@ -261,7 +275,7 @@ namespace Microsoft.Tools.WindowsInstallerXml.UX
             {
                 if (this.tryAgainCommand == null)
                 {
-                    this.tryAgainCommand = new RelayCommand(param => 
+                    this.tryAgainCommand = new RelayCommand(param =>
                         {
                             this.root.Canceled = false;
                             WixBA.Plan(WixBA.Model.PlannedAction);
@@ -303,6 +317,9 @@ namespace Microsoft.Tools.WindowsInstallerXml.UX
                     case InstallationState.Applying:
                         switch (WixBA.Model.PlannedAction)
                         {
+                            case LaunchAction.Layout:
+                                return "Laying out...";
+
                             case LaunchAction.Install:
                                 return "Installing...";
 
@@ -323,6 +340,9 @@ namespace Microsoft.Tools.WindowsInstallerXml.UX
                     case InstallationState.Applied:
                         switch (WixBA.Model.PlannedAction)
                         {
+                            case LaunchAction.Layout:
+                                return "Successfully created layout";
+
                             case LaunchAction.Install:
                                 return "Successfully installed";
 
@@ -349,6 +369,9 @@ namespace Microsoft.Tools.WindowsInstallerXml.UX
                         {
                             switch (WixBA.Model.PlannedAction)
                             {
+                                case LaunchAction.Layout:
+                                    return "Failed to create layout";
+
                                 case LaunchAction.Install:
                                     return "Failed to install";
 
@@ -413,29 +436,6 @@ namespace Microsoft.Tools.WindowsInstallerXml.UX
             }
             else if (Hresult.Succeeded(e.Status))
             {
-                // block if CLR v2 isn't available; sorry, it's needed for the MSBuild tasks
-                if (WixBA.Model.Engine.EvaluateCondition("NOT NETFRAMEWORK35_SP_LEVEL"))
-                {
-                    string message = "WiX Toolset requires the .NET Framework 3.5.1 Windows feature to be enabled.";
-                    WixBA.Model.Engine.Log(LogLevel.Verbose, message);
-
-                    if (Display.Full == WixBA.Model.Command.Display)
-                    {
-                        WixBA.Dispatcher.Invoke((Action)delegate()
-                            {
-                                MessageBox.Show(message, "WiX Toolset", MessageBoxButton.OK, MessageBoxImage.Error);
-                                if (null != WixBA.View)
-                                {
-                                    WixBA.View.Close();
-                                }
-                            }
-                        );
-                    }
-
-                    this.root.InstallState = InstallationState.Failed;
-                    return;
-                }
-
                 if (this.Downgrade)
                 {
                     // TODO: What behavior do we want for downgrade?
